@@ -51,20 +51,20 @@ void pl_sleep(int ms)
 }
 
 
-void pl_read_file(const char* filepath, struct pl_buffer* plb)
+void pl_read_file_ex(void*(*alloc_fn)(size_t size), const char* filepath, struct pl_buffer* plb)
 {
 	SDL_RWops* f = SDL_RWFromFile(filepath, "rb");
 	assert(f != NULL);
 	plb->size = f->size(f);
-	plb->data = malloc(plb->size);
+	plb->data = alloc_fn(plb->size);
 	assert(plb->data != NULL);
 	f->read(f, plb->data, plb->size, 1);
 	f->close(f);
 }
 
-void pl_free_buffer(struct pl_buffer* plb)
+void pl_free_buffer_ex(void(*free_fn)(void* ptr), struct pl_buffer* plb)
 {
-	free(plb->data);
+	free_fn(plb->data);
 }
 
 bool pl_close_request(void)

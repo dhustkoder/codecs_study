@@ -50,9 +50,16 @@ extern void pl_audio_render(void* data);
 extern bool pl_close_request(void);
 
 
-extern void pl_read_file(const char* filepath, struct pl_buffer* plb);
-extern void pl_free_buffer(struct pl_buffer* plb);
+extern void pl_read_file_ex(
+	void*(*alloc_fn)(size_t size),
+	const char* filepath,
+	struct pl_buffer* plb
+);
+#define pl_read_file(...) pl_read_file_ex(SDL_malloc, __VA_ARGS__)
 
+
+extern void pl_free_buffer_ex(void(*free_fn)(void* ptr), struct pl_buffer* plb);
+#define pl_free_buffer(...) pl_free_buffer_ex(SDL_free, __VA_ARGS__)
 
 extern void pl_sleep(int ms);
 
