@@ -1,5 +1,5 @@
-#ifndef DVS_TYPES_H_
-#define DVS_TYPES_H_
+#ifndef CODECS_STUDY_TYPES_H_
+#define CODECS_STUDY_TYPES_H_
 #include <assert.h>
 #include <SDL2/SDL.h>
 

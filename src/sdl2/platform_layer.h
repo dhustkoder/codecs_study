@@ -1,5 +1,5 @@
-#ifndef DVS_PLATFORM_LAYER_H_
-#define DVS_PLATFORM_LAYER_H_
+#ifndef CODECS_STUDY_PLATFORM_LAYER_H_
+#define CODECS_STUDY_PLATFORM_LAYER_H_
 #include "base_defs.h"
 
 #define PL_DEFAULT_SCR_W       (800)
@@ -39,7 +39,7 @@ struct pl_buffer {
 
 
 
-extern void dvs_main(int argc, char** argv);
+extern void codecs_study_main(int argc, char** argv);
 
 extern void pl_cfg_video(int w, int h, pl_video_fmt_t fmt);
 extern void pl_cfg_audio(int freq, int channels, pl_audio_fmt_t fmt);

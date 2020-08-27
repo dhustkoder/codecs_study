@@ -7,7 +7,7 @@
 // example: ./app smbtheme.pcm 1600 1 s16le
 
 
-void dvs_main(int argc, char** argv)
+void codecs_study_main(int argc, char** argv)
 {
 	struct pl_buffer file;
 	pl_audio_fmt_t fmt;

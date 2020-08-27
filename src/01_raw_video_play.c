@@ -5,7 +5,7 @@
 // example: ./app kitty.raw 1280 720 22 rgb24
 
 
-void dvs_main(int argc, char** argv)
+void codecs_study_main(int argc, char** argv)
 {
 	pl_video_fmt_t vfmt;
 	struct pl_buffer file;

@@ -18,7 +18,7 @@ static void pl_init(void)
 	}
 
 	// video
-	window = SDL_CreateWindow("DVS", SDL_WINDOWPOS_CENTERED,
+	window = SDL_CreateWindow("CODECS_STUDY", SDL_WINDOWPOS_CENTERED,
 				  SDL_WINDOWPOS_CENTERED,
 				  PL_DEFAULT_SCR_W, PL_DEFAULT_SCR_W,
 				  SDL_WINDOW_SHOWN);
@@ -179,7 +179,7 @@ int main(int argc, char** argv)
 {
 	pl_init();
 
-	dvs_main(argc, argv);
+	codecs_study_main(argc, argv);
 
 	pl_term();
 
