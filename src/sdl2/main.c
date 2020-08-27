@@ -58,6 +58,22 @@ static void pl_term(void)
 
 
 
+void pl_read_file(const char* filepath, struct pl_buffer* plb)
+{
+	SDL_RWops* f = SDL_RWFromFile(filepath, "rb");
+	assert(f != NULL);
+	plb->size = f->size(f);
+	plb->data = malloc(plb->size);
+	assert(plb->data != NULL);
+	f->read(f, plb->data, plb->size, 1);
+	f->close(f);
+}
+
+void pl_free_buffer(struct pl_buffer* plb)
+{
+	free(plb->data);
+}
+
 bool pl_close_request(void)
 {
 	SDL_Event event;
@@ -88,7 +104,7 @@ int main(int argc, char** argv)
 {
 	pl_init();
 
-	dvs_main();
+	dvs_main(argc, argv);
 
 	pl_term();
 

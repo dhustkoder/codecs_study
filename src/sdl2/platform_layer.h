@@ -14,12 +14,18 @@
 #endif
 
 
+struct pl_buffer {
+	u64 size;
+	u8* data;
+};
 
-extern void dvs_main(void);
+
+
+extern void dvs_main(int argc, char** argv);
 extern void pl_render_buffer(void* data);
 extern bool pl_close_request(void);
-
-
+extern void pl_read_file(const char* filepath, struct pl_buffer* plb);
+extern void pl_free_buffer(struct pl_buffer* plb);
 
 
 
