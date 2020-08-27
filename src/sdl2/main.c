@@ -21,7 +21,7 @@ static void pl_init(void)
 	window = SDL_CreateWindow("CODECS_STUDY", SDL_WINDOWPOS_CENTERED,
 				  SDL_WINDOWPOS_CENTERED,
 				  PL_DEFAULT_SCR_W, PL_DEFAULT_SCR_W,
-				  SDL_WINDOW_SHOWN);
+				  SDL_WINDOW_SHOWN|SDL_WINDOW_RESIZABLE);
 	assert(window != NULL);
 
 	renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
@@ -86,13 +86,17 @@ void pl_cfg_video(int w, int h, pl_video_fmt_t fmt)
 {
 	u32 sdl_fmt;
 
-	assert(w > 0 && w <= 1280);
-	assert(h > 0 && h <= 720);
+	assert(w > 0 && w <= 1920);
+	assert(h > 0 && h <= 1080);
 
 	switch (fmt) {
 	case PL_VIDEO_FMT_RGB24:
 		sdl_fmt = SDL_PIXELFORMAT_RGB24;
 		video_bpp = 3;
+		break;
+	case PL_VIDEO_FMT_YUV:
+		sdl_fmt = SDL_PIXELFORMAT_IYUV;
+		video_bpp = 1;
 		break;
 	default:
 		assert(false);
@@ -165,7 +169,14 @@ void pl_video_render(void* data)
 	memcpy(pixels, data, video_w * video_h * video_bpp);
 	SDL_UnlockTexture(texture);
 	SDL_RenderCopy(renderer, texture, NULL, NULL);
-	SDL_RenderPresent(renderer);	
+	SDL_RenderPresent(renderer);
+}
+
+void pl_video_render_yuv(void* y, void* u, void* v, int ypitch, int upitch, int vpitch)
+{
+	SDL_UpdateYUVTexture(texture, NULL, y, ypitch, u, upitch, v, vpitch);
+	SDL_RenderCopy(renderer, texture, NULL, NULL);
+	SDL_RenderPresent(renderer);
 }
 
 void pl_audio_render(void* data)

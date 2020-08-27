@@ -21,7 +21,8 @@
 
 
 enum pl_video_fmt {
-	PL_VIDEO_FMT_RGB24
+	PL_VIDEO_FMT_RGB24,
+	PL_VIDEO_FMT_YUV
 };
 typedef enum pl_video_fmt pl_video_fmt_t;
 
@@ -45,6 +46,7 @@ extern void pl_cfg_video(int w, int h, pl_video_fmt_t fmt);
 extern void pl_cfg_audio(int freq, int channels, pl_audio_fmt_t fmt);
 
 extern void pl_video_render(void* data);
+extern void pl_video_render_yuv(void* y, void* u, void* v, int ypitch, int upitch, int vpitch);
 extern void pl_audio_render(void* data);
 
 extern bool pl_close_request(void);
