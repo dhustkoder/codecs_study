@@ -9,3 +9,9 @@ PLSRC=src/sdl2/*.c
 	$(CC) $(CFLAGS) $(PLSRC) src/01_raw_video_play.c -o $@
 
 
+02_pcm_audio_play.app:
+	$(CC) $(CFLAGS) $(PLSRC) src/02_pcm_audio_play.c -o $@
+
+
+clean:
+	rm -rf *.app
