@@ -86,6 +86,9 @@ void pl_cfg_video(int w, int h, pl_video_fmt_t fmt)
 {
 	u32 sdl_fmt;
 
+	assert(w > 0 && w <= 1280);
+	assert(h > 0 && h <= 720);
+
 	switch (fmt) {
 	case PL_VIDEO_FMT_RGB24:
 		sdl_fmt = SDL_PIXELFORMAT_RGB24;
@@ -115,6 +118,14 @@ void pl_cfg_video(int w, int h, pl_video_fmt_t fmt)
 void pl_cfg_audio(int freq, int channels, pl_audio_fmt_t fmt)
 {
 	SDL_AudioFormat sdl_fmt;
+
+	assert(
+		freq > 1024 && 
+		freq <= 48000 && 
+		freq % 2 == 0 && 
+		channels >= 1 && 
+		channels <= 2
+	);
 
 	switch (fmt) {
 	case PL_AUDIO_FMT_S16LE:
