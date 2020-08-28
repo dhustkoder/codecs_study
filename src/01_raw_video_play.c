@@ -42,12 +42,13 @@ void codecs_study_main(int argc, char** argv)
 		const u64 size_read = itr - file.data;
 
 		if (size_read < file.size && (file.size - size_read) >= frame_size) {
+			pl_video_render(itr);
 			itr += frame_size;
 		} else {
 			itr = file.data;
 		}
 
-		pl_video_render(itr);
+		
 		pl_sleep(1000 / fps);
 	}
 
