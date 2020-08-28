@@ -75,15 +75,19 @@ void codecs_study_main(int argc, char** argv)
 
 	while (!pl_close_request()) {
 		if (av_read_frame(av_fmt_ctx, av_packet) >= 0) {
-			if (av_packet->stream_index != video_stream->index)
+			if (av_packet->stream_index != video_stream->index) {
+				av_packet_unref(av_packet);
 				continue;
+			}
 
 			err = avcodec_send_packet(av_codec_ctx, av_packet);
 			assert(err == 0);
 			
 			err = avcodec_receive_frame(av_codec_ctx, av_frame);
-			if (err != 0)
+			if (err != 0) {
+				av_packet_unref(av_packet);
 				continue;
+			}
 			
 			if (first_frame) {
 				log_info("FORMAT: %s", av_get_pix_fmt_name(av_frame->format));
@@ -107,10 +111,15 @@ void codecs_study_main(int argc, char** argv)
 				av_frame->data[0], av_frame->data[1], av_frame->data[2],
 				av_frame->linesize[0], av_frame->linesize[1], av_frame->linesize[2]
 			);
+
+			av_frame_unref(av_frame);
+			av_packet_unref(av_packet);
 		}
 
 	}
 
+	av_frame_free(&av_frame);
+	av_packet_free(&av_packet);
 	avcodec_free_context(&av_codec_ctx);
 	avformat_free_context(av_fmt_ctx);
 	avio_context_free(&av_io);
