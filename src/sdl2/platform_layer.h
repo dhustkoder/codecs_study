@@ -2,8 +2,8 @@
 #define CODECS_STUDY_PLATFORM_LAYER_H_
 #include "base_defs.h"
 
-#define PL_DEFAULT_SCR_W       (800)
-#define PL_DEFAULT_SCR_H       (600)
+#define PL_DEFAULT_SCR_W       (640)
+#define PL_DEFAULT_SCR_H       (360)
 #define PL_DEFAULT_VIDEO_FMT   PL_VIDEO_FMT_RGB24
 
 #define PL_DEFAULT_AUDIO_FMT   PL_AUDIO_FMT_S16LE
@@ -38,6 +38,11 @@ struct pl_buffer {
 	u8* data;
 };
 
+
+
+#define PL_TICKS_PER_SEC 1000
+#define pl_get_ticks() SDL_GetTicks()
+typedef u64 tick_t;
 
 
 extern void codecs_study_main(int argc, char** argv);

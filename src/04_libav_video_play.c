@@ -2,6 +2,11 @@
 #include <libavutil/pixdesc.h>
 #include "platform_layer.h"
 
+static double rational_result(AVRational* r)
+{
+	return (double)r->num / (double)r->den;
+}
+
 
 void codecs_study_main(int argc, char** argv)
 {
@@ -10,6 +15,7 @@ void codecs_study_main(int argc, char** argv)
 	AVFormatContext *av_fmt_ctx;
 	AVIOContext *av_io;
 	AVStream* video_stream = NULL;
+	AVCodecParameters* video_codecpar;
 	AVCodec* video_codec = NULL;
 	AVCodecContext* av_codec_ctx;
 	AVFrame* av_frame;
@@ -46,23 +52,28 @@ void codecs_study_main(int argc, char** argv)
 		AVStream* stream = av_fmt_ctx->streams[i];
 		if (stream->codecpar->codec_type == AVMEDIA_TYPE_VIDEO) {
 			video_stream = stream;
+			video_codecpar = video_stream->codecpar;
 			break;
 		}
 	}
-	assert(video_stream != NULL);
+	assert(video_stream != NULL && video_codecpar != NULL);
 
-
-	video_codec = avcodec_find_decoder(video_stream->codecpar->codec_id);
+	video_codec = avcodec_find_decoder(video_codecpar->codec_id);
 	assert(video_codec != NULL);
 
 	av_codec_ctx = avcodec_alloc_context3(video_codec);
 	assert(av_codec_ctx != NULL);
 
-	err = avcodec_parameters_to_context(av_codec_ctx, video_stream->codecpar);
+	err = avcodec_parameters_to_context(av_codec_ctx, video_codecpar);
 	assert(err == 0);
 
 	err = avcodec_open2(av_codec_ctx, video_codec, NULL);
 	assert(err == 0);
+
+	
+	pl_cfg_video(av_codec_ctx->width, av_codec_ctx->height, PL_VIDEO_FMT_YUV);
+	log_info("width: %d", av_codec_ctx->width);
+	log_info("height: %d", av_codec_ctx->height);
 
 
 	av_frame = av_frame_alloc();
@@ -71,7 +82,10 @@ void codecs_study_main(int argc, char** argv)
 	av_packet = av_packet_alloc();
 	assert(av_packet != NULL);
 
-	bool first_frame = true;
+	const double time_base = rational_result(&video_stream->time_base);
+	log_info("time_base: %.4lf", time_base);
+
+	const tick_t start_ticks = pl_get_ticks();
 
 	while (!pl_close_request()) {
 		if (av_read_frame(av_fmt_ctx, av_packet) >= 0) {
@@ -88,23 +102,17 @@ void codecs_study_main(int argc, char** argv)
 				av_packet_unref(av_packet);
 				continue;
 			}
-			
-			if (first_frame) {
-				log_info("FORMAT: %s", av_get_pix_fmt_name(av_frame->format));
-				log_info("width: %d", av_frame->width);
-				log_info("height: %d", av_frame->height);
-				log_info("linesize: %d", av_frame->linesize[0]);
-				log_info("linesize: %d", av_frame->linesize[1]);
-				log_info("linesize: %d", av_frame->linesize[2]);
-				switch (av_frame->format) {
-				case AV_PIX_FMT_YUV420P:
-					pl_cfg_video(av_frame->width, av_frame->height, PL_VIDEO_FMT_YUV);
-					break;
-				default:
-					assert(false);
-					break;
-				}
-				first_frame = false;
+
+			log_info("frame pts: %lld", av_frame->pts);
+
+			tick_t pts_ticks = (av_frame->pts * time_base) * PL_TICKS_PER_SEC;
+			tick_t current_ticks = pl_get_ticks() - start_ticks;
+			if (current_ticks < pts_ticks) {
+				pl_sleep(pts_ticks - current_ticks);
+			} else {
+				av_frame_unref(av_frame);
+				av_packet_unref(av_packet);
+				continue;
 			}
 
 			pl_video_render_yuv(
@@ -114,8 +122,10 @@ void codecs_study_main(int argc, char** argv)
 
 			av_frame_unref(av_frame);
 			av_packet_unref(av_packet);
-		}
 
+
+
+		}
 	}
 
 	av_frame_free(&av_frame);

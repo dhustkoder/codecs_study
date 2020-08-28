@@ -20,7 +20,7 @@ static void pl_init(void)
 	// video
 	window = SDL_CreateWindow("CODECS_STUDY", SDL_WINDOWPOS_CENTERED,
 				  SDL_WINDOWPOS_CENTERED,
-				  PL_DEFAULT_SCR_W, PL_DEFAULT_SCR_W,
+				  PL_DEFAULT_SCR_W, PL_DEFAULT_SCR_H,
 				  SDL_WINDOW_SHOWN|SDL_WINDOW_RESIZABLE);
 	assert(window != NULL);
 
