@@ -12,14 +12,19 @@ void codecs_study_main(int argc, char** argv)
 {
 	int err;
 	struct pl_buffer file;
-	AVFormatContext *av_fmt_ctx;
-	AVIOContext *av_io;
+	
+	AVFormatContext *av_fmt_ctx = NULL;
+	AVIOContext *av_io = NULL;
+
 	AVStream* video_stream = NULL;
-	AVCodecParameters* video_codecpar;
+	AVCodecParameters* video_codecpar = NULL;
+	
 	AVCodec* video_codec = NULL;
-	AVCodecContext* av_codec_ctx;
-	AVFrame* av_frame;
-	AVPacket* av_packet;
+	AVCodecContext* av_codec_ctx = NULL;
+	
+	AVFrame* av_frame = NULL;
+	AVPacket* av_packet = NULL;
+
 
 	assert(argc == 2);
 
@@ -89,19 +94,15 @@ void codecs_study_main(int argc, char** argv)
 
 	while (!pl_close_request()) {
 		if (av_read_frame(av_fmt_ctx, av_packet) >= 0) {
-			if (av_packet->stream_index != video_stream->index) {
-				av_packet_unref(av_packet);
-				continue;
-			}
+			if (av_packet->stream_index != video_stream->index)
+				goto Lunref_packet;
 
 			err = avcodec_send_packet(av_codec_ctx, av_packet);
 			assert(err == 0);
 			
 			err = avcodec_receive_frame(av_codec_ctx, av_frame);
-			if (err != 0) {
-				av_packet_unref(av_packet);
-				continue;
-			}
+			if (err != 0)
+				goto Lunref_packet;
 
 			log_info("frame pts: %lld", av_frame->pts);
 
@@ -109,10 +110,6 @@ void codecs_study_main(int argc, char** argv)
 			tick_t current_ticks = pl_get_ticks() - start_ticks;
 			if (current_ticks < pts_ticks) {
 				pl_sleep(pts_ticks - current_ticks);
-			} else {
-				av_frame_unref(av_frame);
-				av_packet_unref(av_packet);
-				continue;
 			}
 
 			pl_video_render_yuv(
@@ -121,10 +118,8 @@ void codecs_study_main(int argc, char** argv)
 			);
 
 			av_frame_unref(av_frame);
+			Lunref_packet:
 			av_packet_unref(av_packet);
-
-
-
 		}
 	}
 
