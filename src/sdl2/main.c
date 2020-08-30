@@ -136,6 +136,10 @@ void pl_cfg_audio(int freq, int channels, pl_audio_fmt_t fmt)
 		sdl_fmt = AUDIO_S16LSB;
 		audio_bps = 2;
 		break;
+	case PL_AUDIO_FMT_F32SYS:
+		sdl_fmt = AUDIO_F32SYS;
+		audio_bps = 4;
+		break;
 	default:
 		assert(false);
 		break;
@@ -153,6 +157,7 @@ void pl_cfg_audio(int freq, int channels, pl_audio_fmt_t fmt)
 	want.format = sdl_fmt;
 	want.channels = audio_channels;
 	want.samples = audio_freq;
+	want.silence = 0;
 	if ((audio_device = SDL_OpenAudioDevice(NULL, 0, &want, NULL, 0)) == 0) {
 		assert(false);
 	}
@@ -179,11 +184,15 @@ void pl_video_render_yuv(void* y, void* u, void* v, int ypitch, int upitch, int 
 	SDL_RenderPresent(renderer);
 }
 
-void pl_audio_render(void* data)
+void pl_audio_render_ex(void* data, size_t size)
 {
-	SDL_QueueAudio(audio_device, data, audio_freq * audio_bps * audio_channels);
+	SDL_QueueAudio(audio_device, data, size);
 }
 
+void pl_audio_render(void* data)
+{
+	pl_audio_render_ex(data, audio_freq * audio_bps * audio_channels);
+}
 
 
 int main(int argc, char** argv)

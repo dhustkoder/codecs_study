@@ -28,7 +28,8 @@ typedef enum pl_video_fmt pl_video_fmt_t;
 
 
 enum pl_audio_fmt {
-	PL_AUDIO_FMT_S16LE
+	PL_AUDIO_FMT_S16LE,
+	PL_AUDIO_FMT_F32SYS
 };
 typedef enum pl_audio_fmt pl_audio_fmt_t;
 
@@ -52,6 +53,7 @@ extern void pl_cfg_audio(int freq, int channels, pl_audio_fmt_t fmt);
 
 extern void pl_video_render(void* data);
 extern void pl_video_render_yuv(void* y, void* u, void* v, int ypitch, int upitch, int vpitch);
+extern void pl_audio_render_ex(void* data, size_t size);
 extern void pl_audio_render(void* data);
 
 extern bool pl_close_request(void);
