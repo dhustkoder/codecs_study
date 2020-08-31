@@ -2,13 +2,11 @@
 #include <libavutil/pixdesc.h>
 #include "platform_layer.h"
 
+
 static double rational_result(AVRational* r)
 {
 	return (double)r->num / (double)r->den;
 }
-
-
-u8 buffer[3840 * 2];
 
 
 void codecs_study_main(int argc, char** argv)
@@ -27,6 +25,8 @@ void codecs_study_main(int argc, char** argv)
 	
 	AVFrame* av_frame = NULL;
 	AVPacket* av_packet = NULL;
+
+	float* channels_buffer = NULL;
 
 
 	assert(argc == 2);
@@ -77,14 +77,17 @@ void codecs_study_main(int argc, char** argv)
 
 	err = avcodec_open2(av_codec_ctx, audio_codec, NULL);
 	assert(err == 0);
-
 	
 	// config audio
 	log_info("AUDIO FREQUENCY: %d", av_codec_ctx->sample_rate);
 	log_info("CHANNELS: %d", av_codec_ctx->channels);
 	log_info("SAMPLE FMT: %s", av_get_sample_fmt_name(av_codec_ctx->sample_fmt));
+	log_info("FRAME SIZE: %d", av_codec_ctx->frame_size);
 	log_info("initial padding: %d", av_codec_ctx->initial_padding);
 	log_info("trailing padding: %d", av_codec_ctx->trailing_padding);
+
+	channels_buffer = malloc(4 * av_codec_ctx->channels * av_codec_ctx->sample_rate);
+	assert(channels_buffer != NULL);
 
 	pl_cfg_audio(av_codec_ctx->sample_rate, av_codec_ctx->channels, PL_AUDIO_FMT_F32SYS);
 
@@ -124,12 +127,16 @@ void codecs_study_main(int argc, char** argv)
 				pl_sleep(pts_ticks - current_ticks);
 			}
 
-			// render audio
-
 			assert(av_frame->channels < AV_NUM_DATA_POINTERS);
-			pl_audio_render_ex(av_frame->data[0], av_frame->linesize[0]);
-			pl_audio_render_ex(av_frame->data[1], av_frame->linesize[0]);
-			
+			for (int i = 0; i < av_frame->nb_samples; ++i) {
+				for (int c = 0; c < av_frame->channels; ++c) {
+	             	float* extended_data = (float*)av_frame->extended_data[c];
+	             	channels_buffer[(i*av_frame->channels) + c] = extended_data[i];
+	             	// pl_audio_render_ex(&extended_data[i], sizeof(float));
+				}
+			}
+
+			pl_audio_render_ex(channels_buffer, av_frame->nb_samples * av_frame->channels * 4);
 
 			Lunref_frame:
 			av_frame_unref(av_frame);
@@ -138,6 +145,7 @@ void codecs_study_main(int argc, char** argv)
 		}
 	}
 
+	free(channels_buffer);
 	av_frame_free(&av_frame);
 	av_packet_free(&av_packet);
 	avcodec_free_context(&av_codec_ctx);

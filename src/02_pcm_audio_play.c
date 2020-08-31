@@ -23,6 +23,9 @@ void codecs_study_main(int argc, char** argv)
 	if (strcmp(argv[4], "s16le") == 0) {
 		fmt = PL_AUDIO_FMT_S16LE;
 		bps = 2;
+	} else if (strcmp(argv[4], "f32") == 0) {
+		fmt = PL_AUDIO_FMT_F32SYS;
+		bps = 4;
 	} else {
 		assert(false);
 	}

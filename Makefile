@@ -1,7 +1,7 @@
 
 
 CFLAGS=-Wall -Wextra -O0 -g -fsanitize=address -Isrc -Isrc/sdl2 $(shell sdl2-config --cflags)
-LIBS=$(shell sdl2-config --libs) -lavformat -lavcodec -lavutil
+LIBS=$(shell sdl2-config --libs) -lavformat -lavcodec -lavutil -lswresample
 PLSRC=src/sdl2/*.c
 
 
