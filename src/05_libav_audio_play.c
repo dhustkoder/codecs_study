@@ -150,9 +150,12 @@ void codecs_study_main(int argc, char** argv)
 	free(channels_buffer);
 	av_frame_free(&av_frame);
 	av_packet_free(&av_packet);
+	avcodec_close(av_codec_ctx);
 	avcodec_free_context(&av_codec_ctx);
+	avformat_close_input(&av_fmt_ctx);
 	avformat_free_context(av_fmt_ctx);
-	avio_context_free(&av_io);
+	av_free(av_io->buffer);
+	av_free(av_io);
 	pl_free_buffer_ex(av_free, &file);
 }
 
