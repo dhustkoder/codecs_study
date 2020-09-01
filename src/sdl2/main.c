@@ -10,7 +10,7 @@ static int video_w, video_h, video_bpp;
 static int audio_freq, audio_channels, audio_bps;
 
 
-static void pl_init(void)
+static void init_sdl2(void)
 {
 	if (SDL_Init(SDL_INIT_AUDIO|SDL_INIT_VIDEO) != 0) {
 		log_error("Couldn't initialize SDL: %s\n", SDL_GetError());
@@ -35,7 +35,7 @@ static void pl_init(void)
 	SDL_RenderPresent(renderer);
 }
 
-static void pl_term(void)
+static void term_sdl2(void)
 {
 	SDL_CloseAudioDevice(audio_device);
 	SDL_DestroyTexture(texture);
@@ -157,7 +157,6 @@ void pl_cfg_audio(int freq, int channels, pl_audio_fmt_t fmt)
 	want.format = sdl_fmt;
 	want.channels = audio_channels;
 	want.samples = audio_freq;
-	want.silence = 0;
 	if ((audio_device = SDL_OpenAudioDevice(NULL, 0, &want, NULL, 0)) == 0) {
 		assert(false);
 	}
@@ -197,11 +196,11 @@ void pl_audio_render(void* data)
 
 int main(int argc, char** argv)
 {
-	pl_init();
+	init_sdl2();
 
 	codecs_study_main(argc, argv);
 
-	pl_term();
+	term_sdl2();
 
 	return 0;
 }

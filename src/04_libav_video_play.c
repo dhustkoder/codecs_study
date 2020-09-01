@@ -2,19 +2,14 @@
 #include <libavutil/pixdesc.h>
 #include "platform_layer.h"
 
-static double rational_result(AVRational* r)
-{
-	return (double)r->num / (double)r->den;
-}
-
 
 void codecs_study_main(int argc, char** argv)
 {
 	int err;
 	struct pl_buffer file;
 	
-	AVFormatContext *av_fmt_ctx = NULL;
 	AVIOContext *av_io = NULL;
+	AVFormatContext *av_fmt_ctx = NULL;
 
 	AVStream* video_stream = NULL;
 	AVCodecParameters* video_codecpar = NULL;
@@ -74,21 +69,22 @@ void codecs_study_main(int argc, char** argv)
 
 	err = avcodec_open2(av_codec_ctx, video_codec, NULL);
 	assert(err == 0);
-
 	
 	pl_cfg_video(av_codec_ctx->width, av_codec_ctx->height, PL_VIDEO_FMT_YUV);
+
+	const AVRational time_base_rat = video_stream->time_base;
+	const double time_base = (double)time_base_rat.num / (double)time_base_rat.den;
+
 	log_info("width: %d", av_codec_ctx->width);
 	log_info("height: %d", av_codec_ctx->height);
-
-
-	av_frame = av_frame_alloc();
-	assert(av_frame != NULL);
+	log_info("time_base: num %d, den %d", time_base_rat.num, time_base_rat.den);
+	log_info("time_base double: %.6lf", time_base);
 
 	av_packet = av_packet_alloc();
 	assert(av_packet != NULL);
 
-	const double time_base = rational_result(&video_stream->time_base);
-	log_info("time_base: %.4lf", time_base);
+	av_frame = av_frame_alloc();
+	assert(av_frame != NULL);
 
 	const tick_t start_ticks = pl_get_ticks();
 
@@ -102,14 +98,18 @@ void codecs_study_main(int argc, char** argv)
 			
 			err = avcodec_receive_frame(av_codec_ctx, av_frame);
 			if (err != 0)
-				goto Lunref_packet;
+				goto Lunref_frame;
 
-			log_info("frame pts: %lld", av_frame->pts);
 
-			tick_t pts_ticks = (av_frame->pts * time_base) * PL_TICKS_PER_SEC;
-			tick_t current_ticks = pl_get_ticks() - start_ticks;
+			const double pts_ticks = (av_frame->pts * time_base);
+			const double current_ticks = ((double)pl_get_ticks() - (double)start_ticks) / PL_TICKS_PER_SEC;
+
+			log_info("frame pts: %" PRId64, av_frame->pts);
+			log_info("frame pts * timebase: %.6lf", pts_ticks);
+			log_info("current_ticks: %.6lf", current_ticks);
+
 			if (current_ticks < pts_ticks) {
-				pl_sleep(pts_ticks - current_ticks);
+				pl_sleep((pts_ticks - current_ticks) * PL_TICKS_PER_SEC);
 			}
 
 			pl_video_render_yuv(
@@ -117,6 +117,7 @@ void codecs_study_main(int argc, char** argv)
 				av_frame->linesize[0], av_frame->linesize[1], av_frame->linesize[2]
 			);
 
+			Lunref_frame:
 			av_frame_unref(av_frame);
 			Lunref_packet:
 			av_packet_unref(av_packet);
@@ -125,9 +126,12 @@ void codecs_study_main(int argc, char** argv)
 
 	av_frame_free(&av_frame);
 	av_packet_free(&av_packet);
+	avcodec_close(av_codec_ctx);
 	avcodec_free_context(&av_codec_ctx);
+	avformat_close_input(&av_fmt_ctx);
 	avformat_free_context(av_fmt_ctx);
-	avio_context_free(&av_io);
+	av_free(av_io->buffer);
+	av_free(av_io);
 	pl_free_buffer_ex(av_free, &file);
 }
 

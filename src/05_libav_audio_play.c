@@ -3,12 +3,6 @@
 #include "platform_layer.h"
 
 
-static double rational_result(AVRational* r)
-{
-	return (double)r->num / (double)r->den;
-}
-
-
 void codecs_study_main(int argc, char** argv)
 {
 	int err;
@@ -78,27 +72,30 @@ void codecs_study_main(int argc, char** argv)
 	err = avcodec_open2(av_codec_ctx, audio_codec, NULL);
 	assert(err == 0);
 	
+	
+
+	const AVRational time_base_rat = audio_stream->time_base;
+	const double time_base = (double)time_base_rat.num / (double)time_base_rat.den;
+
 	// config audio
+	pl_cfg_audio(av_codec_ctx->sample_rate, av_codec_ctx->channels, PL_AUDIO_FMT_F32SYS);
+	channels_buffer = malloc(4 * av_codec_ctx->channels * av_codec_ctx->sample_rate);
+	assert(channels_buffer != NULL);
+
 	log_info("AUDIO FREQUENCY: %d", av_codec_ctx->sample_rate);
 	log_info("CHANNELS: %d", av_codec_ctx->channels);
 	log_info("SAMPLE FMT: %s", av_get_sample_fmt_name(av_codec_ctx->sample_fmt));
 	log_info("FRAME SIZE: %d", av_codec_ctx->frame_size);
 	log_info("initial padding: %d", av_codec_ctx->initial_padding);
 	log_info("trailing padding: %d", av_codec_ctx->trailing_padding);
-
-	channels_buffer = malloc(4 * av_codec_ctx->channels * av_codec_ctx->sample_rate);
-	assert(channels_buffer != NULL);
-
-	pl_cfg_audio(av_codec_ctx->sample_rate, av_codec_ctx->channels, PL_AUDIO_FMT_F32SYS);
+	log_info("time_base: num %d, den %d", time_base_rat.num, time_base_rat.den);
+	log_info("time_base double: %.6lf", time_base);
 
 	av_frame = av_frame_alloc();
 	assert(av_frame != NULL);
 
 	av_packet = av_packet_alloc();
 	assert(av_packet != NULL);
-
-	const double time_base = rational_result(&audio_stream->time_base);
-	log_info("time_base: %.4lf", time_base);
 
 	const tick_t start_ticks = pl_get_ticks();
 
@@ -114,18 +111,23 @@ void codecs_study_main(int argc, char** argv)
 			if (err != 0)
 				goto Lunref_packet;
 
-			log_info("pts: %ld", av_frame->pts);
-			log_info("nb_samples: %d", av_frame->nb_samples);
-			log_info("linesize: %d", av_frame->linesize[0]);
-
 			if (av_frame->pts < 0)
 				goto Lunref_frame;
 
-			tick_t pts_ticks = (av_frame->pts * time_base) * PL_TICKS_PER_SEC;
-			tick_t current_ticks = pl_get_ticks() - start_ticks;
+			const double pts_ticks = (av_frame->pts * time_base);
+			const double current_ticks = ((double)pl_get_ticks() - (double)start_ticks) / PL_TICKS_PER_SEC;
+
+			log_info("pts: %" PRId64, av_frame->pts);
+			log_info("nb_samples: %d", av_frame->nb_samples);
+			log_info("linesize: %d", av_frame->linesize[0]);
+			log_info("frame pts: %" PRId64, av_frame->pts);
+			log_info("frame pts * timebase: %.6lf", pts_ticks);
+			log_info("current_ticks: %.6lf", current_ticks);
+
 			if (current_ticks < pts_ticks) {
-				pl_sleep(pts_ticks - current_ticks);
+				pl_sleep((pts_ticks - current_ticks) * PL_TICKS_PER_SEC);
 			}
+
 
 			assert(av_frame->channels < AV_NUM_DATA_POINTERS);
 			for (int i = 0; i < av_frame->nb_samples; ++i) {

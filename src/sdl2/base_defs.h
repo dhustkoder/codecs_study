@@ -2,6 +2,7 @@
 #define CODECS_STUDY_TYPES_H_
 #include <assert.h>
 #include <SDL2/SDL.h>
+#include <inttypes.h>
 
 typedef Uint64 u64;
 typedef Sint64 s64;

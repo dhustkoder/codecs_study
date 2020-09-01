@@ -28,7 +28,7 @@ void codecs_study_main(int argc, char** argv)
 
 	pl_cfg_video(width, height, vfmt);
 
-	log_info("file size: %llu", file.size);
+	log_info("file size: %zu", file.size);
 	log_info("width: %d", width);
 	log_info("height: %d", height);
 	log_info("fps: %d", fps);

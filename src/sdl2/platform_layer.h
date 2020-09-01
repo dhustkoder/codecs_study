@@ -35,7 +35,7 @@ typedef enum pl_audio_fmt pl_audio_fmt_t;
 
 
 struct pl_buffer {
-	u64 size;
+	size_t size;
 	u8* data;
 };
 

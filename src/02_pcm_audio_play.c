@@ -33,7 +33,7 @@ void codecs_study_main(int argc, char** argv)
 	pl_cfg_audio(freq, channels, fmt);
 
 
-	log_info("file size: %llu", file.size);
+	log_info("file size: %zu", file.size);
 	log_info("audio frequency: %d", freq);
 	log_info("audio channels: %d", channels);
 	log_info("audio fmt: %s", argv[4]);
