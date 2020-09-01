@@ -127,6 +127,7 @@ void codecs_study_main(int argc, char** argv)
 	const tick_t start_ticks = pl_get_ticks();
 
 	while (!pl_close_request()) {
+
 		if (av_read_frame(av_fmt_ctx, av_packet) >= 0) {
 			
 			AVCodecContext* cctx;
@@ -162,8 +163,6 @@ void codecs_study_main(int argc, char** argv)
 
 				if (current_ticks < pts_ticks) {
 					pl_sleep((pts_ticks - current_ticks) * PL_TICKS_PER_SEC);
-				} else {
-					goto Lunref_frame;
 				}
 
 				assert(av_frame->channels < AV_NUM_DATA_POINTERS);
@@ -180,8 +179,6 @@ void codecs_study_main(int argc, char** argv)
 
 				if (current_ticks < pts_ticks) {
 					pl_sleep((pts_ticks - current_ticks) * PL_TICKS_PER_SEC);
-				} else {
-					goto Lunref_frame;
 				}
 
 				pl_video_render_yuv(
@@ -190,12 +187,13 @@ void codecs_study_main(int argc, char** argv)
 				);
 
 			}
-			
+
 			Lunref_frame:
 			av_frame_unref(av_frame);
 			Lunref_packet:
 			av_packet_unref(av_packet);
 		}
+
 	}
 
 
