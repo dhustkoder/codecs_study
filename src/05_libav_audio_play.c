@@ -8,8 +8,8 @@ void codecs_study_main(int argc, char** argv)
 	int err;
 	struct pl_buffer file;
 	
-	AVFormatContext *av_fmt_ctx = NULL;
 	AVIOContext *av_io = NULL;
+	AVFormatContext *av_fmt_ctx = NULL;
 
 	AVStream* audio_stream = NULL;
 	AVCodecParameters* audio_codecpar = NULL;
@@ -72,15 +72,13 @@ void codecs_study_main(int argc, char** argv)
 	err = avcodec_open2(av_codec_ctx, audio_codec, NULL);
 	assert(err == 0);
 	
-	
-
-	const AVRational time_base_rat = audio_stream->time_base;
-	const double time_base = (double)time_base_rat.num / (double)time_base_rat.den;
 
 	// config audio
 	pl_cfg_audio(av_codec_ctx->sample_rate, av_codec_ctx->channels, PL_AUDIO_FMT_F32SYS);
 	channels_buffer = malloc(4 * av_codec_ctx->channels * av_codec_ctx->sample_rate);
 	assert(channels_buffer != NULL);
+
+	const double time_base = av_q2d(audio_stream->time_base);
 
 	log_info("AUDIO FREQUENCY: %d", av_codec_ctx->sample_rate);
 	log_info("CHANNELS: %d", av_codec_ctx->channels);
@@ -88,7 +86,6 @@ void codecs_study_main(int argc, char** argv)
 	log_info("FRAME SIZE: %d", av_codec_ctx->frame_size);
 	log_info("initial padding: %d", av_codec_ctx->initial_padding);
 	log_info("trailing padding: %d", av_codec_ctx->trailing_padding);
-	log_info("time_base: num %d, den %d", time_base_rat.num, time_base_rat.den);
 	log_info("time_base double: %.6lf", time_base);
 
 	av_frame = av_frame_alloc();
@@ -111,18 +108,14 @@ void codecs_study_main(int argc, char** argv)
 			if (err != 0)
 				goto Lunref_packet;
 
-			if (av_frame->pts < 0)
-				goto Lunref_frame;
-
 			const double pts_ticks = (av_frame->pts * time_base);
 			const double current_ticks = ((double)pl_get_ticks() - (double)start_ticks) / PL_TICKS_PER_SEC;
 
 			log_info("pts: %" PRId64, av_frame->pts);
-			log_info("nb_samples: %d", av_frame->nb_samples);
-			log_info("linesize: %d", av_frame->linesize[0]);
-			log_info("frame pts: %" PRId64, av_frame->pts);
 			log_info("frame pts * timebase: %.6lf", pts_ticks);
 			log_info("current_ticks: %.6lf", current_ticks);
+			log_info("nb_samples: %d", av_frame->nb_samples);
+			log_info("linesize: %d", av_frame->linesize[0]);
 
 			if (current_ticks < pts_ticks) {
 				pl_sleep((pts_ticks - current_ticks) * PL_TICKS_PER_SEC);
@@ -132,9 +125,9 @@ void codecs_study_main(int argc, char** argv)
 			assert(av_frame->channels < AV_NUM_DATA_POINTERS);
 			for (int i = 0; i < av_frame->nb_samples; ++i) {
 				for (int c = 0; c < av_frame->channels; ++c) {
-	             	float* extended_data = (float*)av_frame->extended_data[c];
-	             	channels_buffer[(i*av_frame->channels) + c] = extended_data[i];
-	             	// pl_audio_render_ex(&extended_data[i], sizeof(float));
+					float* extended_data = (float*)av_frame->extended_data[c];
+					channels_buffer[(i*av_frame->channels) + c] = extended_data[i];
+					// pl_audio_render_ex(&extended_data[i], sizeof(float));
 				}
 			}
 

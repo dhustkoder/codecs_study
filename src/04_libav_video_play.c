@@ -72,12 +72,10 @@ void codecs_study_main(int argc, char** argv)
 	
 	pl_cfg_video(av_codec_ctx->width, av_codec_ctx->height, PL_VIDEO_FMT_YUV);
 
-	const AVRational time_base_rat = video_stream->time_base;
-	const double time_base = (double)time_base_rat.num / (double)time_base_rat.den;
+	const double time_base = av_q2d(video_stream->time_base);
 
 	log_info("width: %d", av_codec_ctx->width);
 	log_info("height: %d", av_codec_ctx->height);
-	log_info("time_base: num %d, den %d", time_base_rat.num, time_base_rat.den);
 	log_info("time_base double: %.6lf", time_base);
 
 	av_packet = av_packet_alloc();
