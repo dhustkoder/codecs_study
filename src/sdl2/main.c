@@ -3,7 +3,7 @@
 static SDL_Texture* texture = NULL;
 static SDL_Renderer* renderer = NULL;
 static SDL_Window* window = NULL;
-static SDL_AudioDeviceID audio_device = 0;
+ SDL_AudioDeviceID audio_device = 0;
 
 
 static int video_w, video_h, video_bpp;
@@ -119,7 +119,7 @@ void pl_cfg_video(int w, int h, pl_video_fmt_t fmt)
 	assert(texture != NULL);
 }
 
-void pl_cfg_audio(int freq, int channels, pl_audio_fmt_t fmt)
+void pl_cfg_audio_ex(int freq, int channels, pl_audio_fmt_t fmt, audio_callback_fn_t callback)
 {
 	SDL_AudioFormat sdl_fmt;
 
@@ -157,12 +157,12 @@ void pl_cfg_audio(int freq, int channels, pl_audio_fmt_t fmt)
 	want.format = sdl_fmt;
 	want.channels = audio_channels;
 	want.samples = audio_freq;
+	want.callback = callback;
 	if ((audio_device = SDL_OpenAudioDevice(NULL, 0, &want, NULL, 0)) == 0) {
 		assert(false);
 	}
 
 	SDL_PauseAudioDevice(audio_device, 0);
-
 }
 
 void pl_video_render(void* data)

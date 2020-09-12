@@ -39,6 +39,7 @@ struct pl_buffer {
 	u8* data;
 };
 
+typedef void (*audio_callback_fn_t)(void* userdata, u8* stream, int len);
 
 
 #define PL_TICKS_PER_SEC 1000
@@ -49,7 +50,8 @@ typedef u64 tick_t;
 extern void codecs_study_main(int argc, char** argv);
 
 extern void pl_cfg_video(int w, int h, pl_video_fmt_t fmt);
-extern void pl_cfg_audio(int freq, int channels, pl_audio_fmt_t fmt);
+extern void pl_cfg_audio_ex(int freq, int channels, pl_audio_fmt_t fmt, audio_callback_fn_t callback);
+#define pl_cfg_audio(freq, channels, fmt) pl_cfg_audio_ex(freq, channels, fmt, NULL)
 
 extern void pl_video_render(void* data);
 extern void pl_video_render_yuv(void* y, void* u, void* v, int ypitch, int upitch, int vpitch);
