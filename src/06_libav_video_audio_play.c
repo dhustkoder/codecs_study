@@ -2,7 +2,7 @@
 #include <libavutil/pixdesc.h>
 #include "platform_layer.h"
 
-#define FRAME_QUEUE_SIZE (2048)
+#define FRAME_QUEUE_SIZE (128)
 
 struct frame_queue {
 	AVFrame* frames[FRAME_QUEUE_SIZE];
@@ -52,29 +52,30 @@ static void frame_queue_rem(struct frame_queue* fq, AVFrame** dest)
 }
 
 
-AVFormatContext *av_fmt_ctx = NULL;
-AVStream* audio_stream = NULL;
-AVStream* video_stream = NULL;
-AVCodecContext* audio_codec_ctx = NULL;
-AVCodecContext* video_codec_ctx = NULL;
+static AVFormatContext *av_fmt_ctx = NULL;
+static AVStream* audio_stream = NULL;
+static AVStream* video_stream = NULL;
+static AVCodecContext* audio_codec_ctx = NULL;
+static AVCodecContext* video_codec_ctx = NULL;
 
-AVFrame* av_frame = NULL;
-AVPacket* av_packet = NULL;
+static AVFrame* av_frame = NULL;
+static AVPacket* av_packet = NULL;
 
-u8* channels_buffer = NULL;
-u8* channels_buffer_end = NULL;
-u8* channels_buffer_wp = NULL;
-const u8* channels_buffer_rp = NULL;
+static u8* channels_buffer = NULL;
+static u8* channels_buffer_end = NULL;
+static u8* channels_buffer_wp = NULL;
+static const u8* channels_buffer_rp = NULL;
 
-double atime_base;
-double vtime_base;
-double playing_audio_pts = 0;
-double audio_delay = 0;
+static double atime_base;
+static double vtime_base;
+static double playing_audio_pts = 0;
+static double audio_delay = 0;
+static tick_t start_ticks = 0;
 
 
-static void decode_and_queue_frame(void)
+static bool decode_and_queue_frame(void)
 {
-	int err;
+	int err = 0;
 	if (av_read_frame(av_fmt_ctx, av_packet) >= 0) {
 		
 		AVCodecContext* cctx;
@@ -104,22 +105,15 @@ static void decode_and_queue_frame(void)
 		Lunref_packet:
 		av_packet_unref(av_packet);
 	}
-
+	return (err == 0) || (err == AVERROR(EAGAIN));
 }
 
 static void play_video(void)
 {
-	static tick_t start_ticks = 0;
 	static AVFrame* frame = NULL;
 	static int audio_frames_queued = 0;
 
 	extern SDL_AudioDeviceID audio_device;
-	
-	log_info("PLAYING AUDIO PTS: %.2lf", playing_audio_pts);
-
-	if (start_ticks == 0) {
-		start_ticks = pl_get_ticks();
-	}
 
 	if (frame == NULL) {
 		if (video_queue.cnt > 0)
@@ -131,7 +125,8 @@ static void play_video(void)
 	const double pts_ticks = frame->pts  * vtime_base;
 	const double current_ticks = ((double)pl_get_ticks() - (double)start_ticks) / PL_TICKS_PER_SEC;
 
-	if ((playing_audio_pts - audio_delay ) > pts_ticks) {
+	if ((playing_audio_pts - audio_delay) >= pts_ticks) {
+		log_info("video pts ticks: %.2lf", pts_ticks);
 		pl_video_render_yuv(
 			frame->data[0], frame->data[1], frame->data[2],
 			frame->linesize[0], frame->linesize[1], frame->linesize[2]
@@ -142,16 +137,10 @@ static void play_video(void)
 
 }
 
-
-
 static void play_audio(void)
 {
-	static tick_t start_ticks = 0;
 	static AVFrame* frame = NULL;
 
-	if (start_ticks == 0) {
-		start_ticks = pl_get_ticks();
-	}
 
 	if (frame == NULL) {
 		if (audio_queue.cnt > 0)
@@ -163,10 +152,11 @@ static void play_audio(void)
 	const double pts_ticks = frame->pts * atime_base;
 	const double current_ticks = ((double)pl_get_ticks() - (double)start_ticks) / PL_TICKS_PER_SEC;
 
-	if (current_ticks > pts_ticks) {
+	if (current_ticks >= pts_ticks) {
 		assert(frame->channels < AV_NUM_DATA_POINTERS);
 
 		playing_audio_pts = pts_ticks;
+		log_info("PLAYING AUDIO PTS: %.2lf", playing_audio_pts);
 
 		for (int i = 0; i < frame->nb_samples; ++i) {
 			for (int c = 0; c < frame->channels; ++c) {
@@ -177,13 +167,6 @@ static void play_audio(void)
 					channels_buffer_wp = channels_buffer;
 			}
 		}
-
-		/*
-		pl_audio_render_ex(
-			channels_buffer,
-			frame->nb_samples * frame->channels * 4
-		);
-		*/
 
 		av_frame_unref(frame);
 		frame = NULL;
@@ -349,14 +332,21 @@ void codecs_study_main(int argc, char** argv)
 	frame_queue_init(&video_queue);
 	frame_queue_init(&audio_queue);
 
+	while (video_queue.cnt < FRAME_QUEUE_SIZE && audio_queue.cnt < FRAME_QUEUE_SIZE) {
+		if (!decode_and_queue_frame())
+			break;
+	}
+
+	log_info("video_queue beg size: %d", video_queue.cnt);
+	log_info("audio_queue beg size: %d", audio_queue.cnt);
+
+	start_ticks = pl_get_ticks();
 
 	while (!pl_close_request()) {
-		
-		while (video_queue.cnt < FRAME_QUEUE_SIZE/2 && audio_queue.cnt < FRAME_QUEUE_SIZE/2)
-			decode_and_queue_frame();
-
 		play_audio();
 		play_video();
+		if (video_queue.cnt < FRAME_QUEUE_SIZE && audio_queue.cnt < FRAME_QUEUE_SIZE)
+			decode_and_queue_frame();
 	}
 
 
