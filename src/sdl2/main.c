@@ -156,7 +156,7 @@ void pl_cfg_audio_ex(int freq, int channels, pl_audio_fmt_t fmt, audio_callback_
 	want.freq = audio_freq;
 	want.format = sdl_fmt;
 	want.channels = audio_channels;
-	want.samples = audio_freq;
+	want.samples = 1024;
 	want.callback = callback;
 	if ((audio_device = SDL_OpenAudioDevice(NULL, 0, &want, NULL, 0)) == 0) {
 		assert(false);
