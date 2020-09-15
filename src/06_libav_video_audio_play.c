@@ -2,7 +2,7 @@
 #include <libavutil/pixdesc.h>
 #include "platform_layer.h"
 
-#define PKT_QUEUE_SIZE (1024)
+#define PKT_QUEUE_SIZE (128)
 
 struct pkt_queue {
 	AVPacket* pkts[PKT_QUEUE_SIZE];
@@ -101,7 +101,7 @@ static void play_video(void)
 	static bool frame_ready = false;
 
 
-	Lretry:	
+	Lretry:
 	if (pkt == NULL) {
 		if (video_queue.cnt > 0)
 			pkt_queue_rem(&video_queue, &pkt);
@@ -128,7 +128,7 @@ static void play_video(void)
 	const double current_ticks = ((double)pl_get_ticks() - (double)start_ticks) / PL_TICKS_PER_SEC;
 
 	if (current_ticks >= pts_ticks) {
-		//log_info("video pts ticks: %.2lf", pts_ticks);
+		log_info("video pts ticks: %.2lf", pts_ticks);
 		pl_video_render_yuv(
 			video_frame->data[0], video_frame->data[1], video_frame->data[2],
 			video_frame->linesize[0], video_frame->linesize[1], video_frame->linesize[2]
@@ -177,7 +177,7 @@ static void play_audio(void)
 		assert(audio_frame->channels < AV_NUM_DATA_POINTERS);
 
 		playing_audio_pts = pts_ticks;
-		//log_info("PLAYING AUDIO PTS: %.2lf", playing_audio_pts);
+		log_info("PLAYING AUDIO PTS: %.2lf", playing_audio_pts);
 
 		for (int i = 0; i < audio_frame->nb_samples; ++i) {
 			for (int c = 0; c < audio_frame->channels; ++c) {
@@ -188,9 +188,6 @@ static void play_audio(void)
 					channels_buffer_wp = channels_buffer;
 			}
 		}
-
-
-		log_info("AUDIO WP: %d", (int)(channels_buffer_wp - channels_buffer));
 
 		av_frame_unref(audio_frame);
 		av_packet_unref(pkt);
@@ -210,7 +207,6 @@ void audio_callback(void* userdata, u8* stream, int stream_len)
 
 Lsend:
 	if (channels_buffer_rp == channels_buffer_wp) {
-		log_info("not sending");
 		memset(stream, 0, stream_len);
 		return;
 	}
@@ -223,11 +219,9 @@ Lsend:
 	}
 
 	len = ( stream_len > audio_len ? audio_len : stream_len );
-	log_info("sending len: %d", len);
 	memcpy(stream, channels_buffer_rp, len);
 
-	channels_buffer_rp += len;
-	log_info("AUDIO RP: %d", (int)(channels_buffer_rp - channels_buffer));
+	channels_buffer_rp += len;;
 	if (channels_buffer_rp == channels_buffer_end)
 		channels_buffer_rp = channels_buffer;
 
@@ -370,7 +364,7 @@ void codecs_study_main(int argc, char** argv)
 	log_info("video_queue beg size: %d", video_queue.cnt);
 	log_info("audio_queue beg size: %d", audio_queue.cnt);
 
-	while (audio_queue.cnt < PKT_QUEUE_SIZE && video_queue.cnt < PKT_QUEUE_SIZE)
+	while (video_queue.cnt < PKT_QUEUE_SIZE && audio_queue.cnt < PKT_QUEUE_SIZE)
 		if (!read_and_queue_pkt())
 			break;
 
@@ -378,7 +372,7 @@ void codecs_study_main(int argc, char** argv)
 	while (!pl_close_request()) {
 		play_audio();
 		play_video();
-		if (audio_queue.cnt < PKT_QUEUE_SIZE && video_queue.cnt < PKT_QUEUE_SIZE)
+		if (video_queue.cnt < PKT_QUEUE_SIZE && audio_queue.cnt < PKT_QUEUE_SIZE)
 			read_and_queue_pkt();
 	}
 
