@@ -65,15 +65,12 @@ static AVFrame* audio_frame = NULL;
 static AVPacket* av_packet = NULL;
 
 static u8* channels_buffer = NULL;
-static u8* channels_buffer_end = NULL;
-static u8* channels_buffer_wp = NULL;
-static const u8* channels_buffer_rp = NULL;
 
 static double atime_base;
 static double vtime_base;
 static double playing_audio_pts = 0;
 static double audio_delay = 0;
-static tick_t start_ticks = 0;
+
 
 static bool read_and_queue_pkt(void)
 {
@@ -99,6 +96,7 @@ static void play_video(void)
 {
 	static AVPacket* pkt = NULL;
 	static bool frame_ready = false;
+	static tick_t start_ticks = 0;
 
 
 	Lretry:
@@ -123,12 +121,14 @@ static void play_video(void)
 		}
 	}
 
+	if (start_ticks == 0)
+		start_ticks = pl_get_ticks();
 
 	const double pts_ticks = video_frame->pts  * vtime_base;
 	const double current_ticks = ((double)pl_get_ticks() - (double)start_ticks) / PL_TICKS_PER_SEC;
 
 	if (current_ticks >= pts_ticks) {
-		log_info("video pts ticks: %.2lf", pts_ticks);
+// 		log_info("video pts ticks: %.2lf", pts_ticks);
 		pl_video_render_yuv(
 			video_frame->data[0], video_frame->data[1], video_frame->data[2],
 			video_frame->linesize[0], video_frame->linesize[1], video_frame->linesize[2]
@@ -145,6 +145,7 @@ static void play_audio(void)
 {
 	static AVPacket* pkt = NULL;
 	static bool frame_ready = false;
+	static tick_t start_ticks = 0;
 
 	Lretry:	
 	if (pkt == NULL) {
@@ -169,6 +170,8 @@ static void play_audio(void)
 	}
 
 
+	if (start_ticks == 0)
+		start_ticks = pl_get_ticks();
 
 	const double pts_ticks = audio_frame->pts * atime_base;
 	const double current_ticks = ((double)pl_get_ticks() - (double)start_ticks) / PL_TICKS_PER_SEC;
@@ -177,17 +180,21 @@ static void play_audio(void)
 		assert(audio_frame->channels < AV_NUM_DATA_POINTERS);
 
 		playing_audio_pts = pts_ticks;
-		log_info("PLAYING AUDIO PTS: %.2lf", playing_audio_pts);
+		// log_info("PLAYING AUDIO PTS: %.2lf", playing_audio_pts);
 
+		float* channels_buffer_wp = channels_buffer;
 		for (int i = 0; i < audio_frame->nb_samples; ++i) {
 			for (int c = 0; c < audio_frame->channels; ++c) {
 				float* data = audio_frame->data[c];
-				*((float*)channels_buffer_wp) = data[i];
-				channels_buffer_wp += 4;
-				if (channels_buffer_wp >= channels_buffer_end)
-					channels_buffer_wp = channels_buffer;
+				*channels_buffer_wp = data[i];
+				++channels_buffer_wp;
 			}
 		}
+
+		pl_audio_render_ex(
+			channels_buffer,
+			sizeof(float) * audio_frame->nb_samples * audio_frame->channels
+		);
 
 		av_frame_unref(audio_frame);
 		av_packet_unref(pkt);
@@ -197,43 +204,6 @@ static void play_audio(void)
 
 }
 
-void audio_callback(void* userdata, u8* stream, int stream_len)
-{
-	int audio_len;
-	int len;
-	bool double_send = false;
-
-	audio_delay = (stream_len / 4.f) / audio_codec_ctx->sample_rate;
-
-Lsend:
-	if (channels_buffer_rp == channels_buffer_wp) {
-		memset(stream, 0, stream_len);
-		return;
-	}
-
-	if (channels_buffer_rp < channels_buffer_wp) {
-		audio_len = channels_buffer_wp - channels_buffer_rp;
-	} else {
-		audio_len = channels_buffer_end - channels_buffer_rp;
-		double_send = true;
-	}
-
-	len = ( stream_len > audio_len ? audio_len : stream_len );
-	memcpy(stream, channels_buffer_rp, len);
-
-	channels_buffer_rp += len;;
-	if (channels_buffer_rp == channels_buffer_end)
-		channels_buffer_rp = channels_buffer;
-
-
-	if (double_send) {
-		double_send = false;
-		stream_len -= len;
-		stream += len;
-		goto Lsend;
-	}
-
-}
 
 
 void codecs_study_main(int argc, char** argv)
@@ -324,14 +294,10 @@ void codecs_study_main(int argc, char** argv)
 	
 
 	pl_cfg_video(video_codec_ctx->width, video_codec_ctx->height, PL_VIDEO_FMT_YUV);
-	pl_cfg_audio_ex(audio_codec_ctx->sample_rate, audio_codec_ctx->channels, PL_AUDIO_FMT_F32SYS, audio_callback);
+	pl_cfg_audio(audio_codec_ctx->sample_rate, audio_codec_ctx->channels, PL_AUDIO_FMT_F32SYS);
 
 	const size_t cbsize = 4 * audio_codec_ctx->channels * audio_codec_ctx->sample_rate;
-	log_info("AUDIO SIZE: %ld", cbsize);
 	channels_buffer = malloc(cbsize);
-	channels_buffer_end = channels_buffer + (cbsize);
-	channels_buffer_rp = channels_buffer;
-	channels_buffer_wp = channels_buffer;
 	assert(channels_buffer != NULL);
 
 	atime_base = av_q2d(audio_stream->time_base);
@@ -361,17 +327,17 @@ void codecs_study_main(int argc, char** argv)
 	pkt_queue_init(&video_queue);
 	pkt_queue_init(&audio_queue);
 
-	log_info("video_queue beg size: %d", video_queue.cnt);
-	log_info("audio_queue beg size: %d", audio_queue.cnt);
 
 	while (video_queue.cnt < PKT_QUEUE_SIZE && audio_queue.cnt < PKT_QUEUE_SIZE)
 		if (!read_and_queue_pkt())
 			break;
 
-	start_ticks = pl_get_ticks();
+	
 	while (!pl_close_request()) {
 		play_audio();
 		play_video();
+		log_info("video_queue.cnt %d", video_queue.cnt);
+		log_info("audio_queue.cnt %d", audio_queue.cnt);
 		if (video_queue.cnt < PKT_QUEUE_SIZE && audio_queue.cnt < PKT_QUEUE_SIZE)
 			read_and_queue_pkt();
 	}
