@@ -2,7 +2,7 @@
 #include <libavutil/pixdesc.h>
 #include "platform_layer.h"
 
-#define PKT_QUEUE_SIZE (128)
+#define PKT_QUEUE_SIZE (1024 * 64)
 
 struct pkt_queue {
 	AVPacket* pkts[PKT_QUEUE_SIZE];
@@ -15,44 +15,53 @@ static struct pkt_queue video_queue;
 static struct pkt_queue audio_queue;
 
 
-static void pkt_queue_init(struct pkt_queue* fq)
+static void pkt_queue_init(struct pkt_queue* pq)
 {
-	memset(fq->pkts, 0, PKT_QUEUE_SIZE * sizeof(*fq->pkts));
-	fq->in_itr = fq->pkts;
-	fq->out_itr = fq->pkts;
-	fq->cnt = 0;
+	memset(pq->pkts, 0, PKT_QUEUE_SIZE * sizeof(*pq->pkts));
+	pq->in_itr = pq->pkts;
+	pq->out_itr = pq->pkts;
+	pq->cnt = 0;
 }
 
 
-static void pkt_queue_add(struct pkt_queue* fq, AVPacket* src)
+static void pkt_queue_add(struct pkt_queue* pq, AVPacket* src)
 {
-	assert(fq->cnt < PKT_QUEUE_SIZE);
+	assert(pq->cnt < PKT_QUEUE_SIZE);
 
 
-	*fq->in_itr = av_packet_clone(src);
-	assert(*fq->in_itr != NULL);
-	++fq->in_itr;
+	*pq->in_itr = av_packet_clone(src);
+	assert(*pq->in_itr != NULL);
+	++pq->in_itr;
 	
-	if ((fq->in_itr - fq->pkts) == PKT_QUEUE_SIZE)
-		fq->in_itr = fq->pkts;
+	if ((pq->in_itr - pq->pkts) == PKT_QUEUE_SIZE)
+		pq->in_itr = pq->pkts;
 	
-	++fq->cnt;
+	++pq->cnt;
 } 
 
 
-static void pkt_queue_rem(struct pkt_queue* fq, AVPacket** dest)
+static void pkt_queue_rem(struct pkt_queue* pq, AVPacket** dest)
 {
-	assert(*fq->out_itr != NULL);
-	*dest = *fq->out_itr;
-	*fq->out_itr = NULL;
-	++fq->out_itr;
+	assert(*pq->out_itr != NULL);
+	*dest = *pq->out_itr;
+	*pq->out_itr = NULL;
+	++pq->out_itr;
 	
-	if ((fq->out_itr - fq->pkts) == PKT_QUEUE_SIZE)
-		fq->out_itr = fq->pkts;
+	if ((pq->out_itr - pq->pkts) == PKT_QUEUE_SIZE)
+		pq->out_itr = pq->pkts;
 
-	--fq->cnt;
+	--pq->cnt;
 }
 
+static void pkt_queue_clean(struct pkt_queue* pq)
+{
+	AVPacket* pkt;
+	while (pq->cnt > 0) {
+		pkt_queue_rem(pq, &pkt);
+		av_packet_unref(pkt);
+		av_packet_free(&pkt);
+	}
+}
 
 static AVFormatContext *av_fmt_ctx = NULL;
 static AVStream* audio_stream = NULL;
@@ -68,23 +77,18 @@ static u8* channels_buffer = NULL;
 
 static double atime_base;
 static double vtime_base;
-static double playing_audio_pts = 0;
-static double audio_delay = 0;
 
 
 static bool read_and_queue_pkt(void)
 {
-	if (av_read_frame(av_fmt_ctx, av_packet) >= 0) {
+	if (av_read_frame(av_fmt_ctx, av_packet) == 0) {
 
 		if (av_packet->stream_index == audio_stream->index) {
 			pkt_queue_add(&audio_queue, av_packet);
 		} else if (av_packet->stream_index == video_stream->index) {
 			pkt_queue_add(&video_queue, av_packet);
-		} else {
-			goto Lunref_packet;
 		}
 
-		Lunref_packet:
 		av_packet_unref(av_packet);
 		return true;
 	} else {
@@ -92,116 +96,110 @@ static bool read_and_queue_pkt(void)
 	}
 }
 
-static void play_video(void)
+
+static void decode_and_play_frame(
+	struct pkt_queue* pq,
+	AVFrame* frame,
+	bool* frame_ready,
+	AVCodecContext* cc,
+	tick_t* start_ticks,
+	double time_base,
+	void(*render_frame)(AVFrame*)
+)
 {
-	static AVPacket* pkt = NULL;
-	static bool frame_ready = false;
-	static tick_t start_ticks = 0;
+	AVPacket* pkt;
 
+	while (!(*frame_ready)) {
 
-	Lretry:
-	if (pkt == NULL) {
-		if (video_queue.cnt > 0)
-			pkt_queue_rem(&video_queue, &pkt);
-		else
+		if (pq->cnt == 0)
 			return;
+
+		pkt_queue_rem(pq, &pkt);
+
+		int err = avcodec_send_packet(cc, pkt);
+		assert(err == 0);
+		err = avcodec_receive_frame(cc, frame);
+		av_packet_unref(pkt);
+		av_packet_free(&pkt);
+		
+		assert(err == AVERROR(EAGAIN) || err == 0);
+
+		if (err == 0)
+			*frame_ready = true;
+
 	}
 
-	if (!frame_ready) {
-		int err = avcodec_send_packet(video_codec_ctx, pkt);
-		assert(err == 0);
-		
-		err = avcodec_receive_frame(video_codec_ctx, video_frame);
-		if (err == AVERROR(EAGAIN)) {
-			av_packet_unref(pkt);
-			pkt = NULL;
-			goto Lretry;
-		} else {
-			frame_ready = true;
+	if (*start_ticks == 0)
+		*start_ticks = pl_get_ticks();
+
+	const double pts_ticks = frame->pts  * time_base;
+	const double current_ticks = ((double)pl_get_ticks() - (double)*start_ticks) / PL_TICKS_PER_SEC;
+
+	if (current_ticks > pts_ticks) {
+		render_frame(frame);
+		av_frame_unref(frame);
+		*frame_ready = false;
+	}
+
+}
+
+static void render_video_frame(AVFrame* frame)
+{
+	pl_video_render_yuv(
+		frame->data[0], frame->data[1], frame->data[2],
+		frame->linesize[0], frame->linesize[1], frame->linesize[2]
+	);
+}
+
+static void render_audio_frame(AVFrame* frame)
+{
+	assert(frame->channels < AV_NUM_DATA_POINTERS);
+
+	float* channels_buffer_wp =  (float*)channels_buffer;
+	for (int i = 0; i < frame->nb_samples; ++i) {
+		for (int c = 0; c < frame->channels; ++c) {
+			float* data = (float*) frame->data[c];
+			*channels_buffer_wp = data[i];
+			++channels_buffer_wp;
 		}
 	}
 
-	if (start_ticks == 0)
-		start_ticks = pl_get_ticks();
+	pl_audio_render_ex(
+		channels_buffer,
+		sizeof(float) * frame->nb_samples * frame->channels
+	);
+}
 
-	const double pts_ticks = video_frame->pts  * vtime_base;
-	const double current_ticks = ((double)pl_get_ticks() - (double)start_ticks) / PL_TICKS_PER_SEC;
+static void play_video(void)
+{
+	static bool frame_ready = false;
+	static tick_t start_ticks = 0;
 
-	if (current_ticks >= pts_ticks) {
-// 		log_info("video pts ticks: %.2lf", pts_ticks);
-		pl_video_render_yuv(
-			video_frame->data[0], video_frame->data[1], video_frame->data[2],
-			video_frame->linesize[0], video_frame->linesize[1], video_frame->linesize[2]
-		);
-
-		av_frame_unref(video_frame);
-		av_packet_unref(pkt);
-		pkt = NULL;
-		frame_ready = false;
-	}
+	decode_and_play_frame(
+		&video_queue,
+		video_frame,
+		&frame_ready,
+		video_codec_ctx,
+		&start_ticks,
+		vtime_base,
+		render_video_frame
+	);
 }
 
 static void play_audio(void)
 {
-	static AVPacket* pkt = NULL;
 	static bool frame_ready = false;
 	static tick_t start_ticks = 0;
 
-	Lretry:	
-	if (pkt == NULL) {
-		if (audio_queue.cnt > 0)
-			pkt_queue_rem(&audio_queue, &pkt);
-		else
-			return;
-	}
-
-	if (!frame_ready) {
-		int err = avcodec_send_packet(audio_codec_ctx, pkt);
-		assert(err == 0);
-		
-		err = avcodec_receive_frame(audio_codec_ctx, audio_frame);
-		if (err == AVERROR(EAGAIN)) {
-			av_packet_unref(pkt);
-			pkt = NULL;
-			goto Lretry;
-		} else {
-			frame_ready = true;
-		}
-	}
-
-
-	if (start_ticks == 0)
-		start_ticks = pl_get_ticks();
-
-	const double pts_ticks = audio_frame->pts * atime_base;
-	const double current_ticks = ((double)pl_get_ticks() - (double)start_ticks) / PL_TICKS_PER_SEC;
-
-	if (current_ticks >= pts_ticks) {
-		assert(audio_frame->channels < AV_NUM_DATA_POINTERS);
-
-		playing_audio_pts = pts_ticks;
-		// log_info("PLAYING AUDIO PTS: %.2lf", playing_audio_pts);
-
-		float* channels_buffer_wp = channels_buffer;
-		for (int i = 0; i < audio_frame->nb_samples; ++i) {
-			for (int c = 0; c < audio_frame->channels; ++c) {
-				float* data = audio_frame->data[c];
-				*channels_buffer_wp = data[i];
-				++channels_buffer_wp;
-			}
-		}
-
-		pl_audio_render_ex(
-			channels_buffer,
-			sizeof(float) * audio_frame->nb_samples * audio_frame->channels
-		);
-
-		av_frame_unref(audio_frame);
-		av_packet_unref(pkt);
-		pkt = NULL;
-		frame_ready = false;
-	}
-
+	decode_and_play_frame(
+		&audio_queue,
+		audio_frame,
+		&frame_ready,
+		audio_codec_ctx,
+		&start_ticks,
+		atime_base,
+		render_audio_frame
+	);
 }
 
 
@@ -336,12 +334,14 @@ void codecs_study_main(int argc, char** argv)
 	while (!pl_close_request()) {
 		play_audio();
 		play_video();
-		log_info("video_queue.cnt %d", video_queue.cnt);
-		log_info("audio_queue.cnt %d", audio_queue.cnt);
+//		log_info("video_queue.cnt %d", video_queue.cnt);
+//		log_info("audio_queue.cnt %d", audio_queue.cnt);
 		if (video_queue.cnt < PKT_QUEUE_SIZE && audio_queue.cnt < PKT_QUEUE_SIZE)
 			read_and_queue_pkt();
 	}
 
+	pkt_queue_clean(&video_queue);
+	pkt_queue_clean(&audio_queue);
 
 	free(channels_buffer);
 	

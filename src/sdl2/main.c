@@ -24,7 +24,7 @@ static void init_sdl2(void)
 				  SDL_WINDOW_SHOWN|SDL_WINDOW_RESIZABLE);
 	assert(window != NULL);
 
-	renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+	renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED|SDL_RENDERER_PRESENTVSYNC);
 	assert(renderer != NULL);
 
 	pl_cfg_video(PL_DEFAULT_SCR_W, PL_DEFAULT_SCR_H, PL_DEFAULT_VIDEO_FMT);
