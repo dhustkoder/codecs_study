@@ -17,6 +17,9 @@ static void init_sdl2(void)
 		assert(false);
 	}
 
+	if (SDLNet_Init() != 0)
+		assert(false);
+
 	// video
 	window = SDL_CreateWindow("CODECS_STUDY", SDL_WINDOWPOS_CENTERED,
 				  SDL_WINDOWPOS_CENTERED,
@@ -41,6 +44,7 @@ static void term_sdl2(void)
 	SDL_DestroyTexture(texture);
 	SDL_DestroyRenderer(renderer);
 	SDL_DestroyWindow(window);
+	SDLNet_Quit();
 	SDL_Quit();
 }
 
@@ -192,6 +196,76 @@ void pl_audio_render(void* data)
 {
 	pl_audio_render_ex(data, audio_freq * audio_bps * audio_channels);
 }
+
+IPaddress sender_ip_addr;
+
+pl_udp_socket_t pl_socket_udp_sender_create(const char* ip, u16 port)
+{
+	UDPsocket sock;
+
+	sock = SDLNet_UDP_Open(0);
+	assert(sock != 0);
+
+	if (SDLNet_ResolveHost(&sender_ip_addr, ip, port) != 0)
+		assert(false);
+
+
+	return sock;
+}
+
+pl_udp_socket_t pl_socket_udp_receiver_create(u16 port)
+{
+	UDPsocket sock;
+
+	sock = SDLNet_UDP_Open(port);
+	assert(sock != 0);
+	return sock;
+}
+
+void pl_socket_udp_send(pl_udp_socket_t socket, void* data, size_t size)
+{
+	UDPpacket packet = {
+		.data = (void*) data,
+		.len = size,
+		.maxlen = size,
+		.status = 0,
+		.channel = -1,
+		.address = sender_ip_addr
+	};
+
+	SDLNet_UDP_Send(socket, -1, &packet);
+
+}
+
+void pl_socket_udp_recv(pl_udp_socket_t socket, void* data, size_t size)
+{
+	SDLNet_SocketSet set;
+
+	UDPpacket packet = {
+		.data = (void*) data,
+		.len = size,
+		.maxlen = size,
+		.status = 0,
+		.channel = -1,
+	};
+
+	set = SDLNet_AllocSocketSet(1);
+	assert(set != 0);
+	SDLNet_UDP_AddSocket(set, socket);
+
+
+	for (;;) {
+		int check = SDLNet_CheckSockets(set, 16);
+		if (check != -1 && check > 0)
+			break;
+	}
+
+	SDLNet_UDP_Recv(socket, &packet);
+
+
+	SDLNet_FreeSocketSet(set);
+}
+
 
 
 int main(int argc, char** argv)

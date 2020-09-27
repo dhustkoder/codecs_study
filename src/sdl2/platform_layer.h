@@ -1,5 +1,8 @@
 #ifndef CODECS_STUDY_PLATFORM_LAYER_H_
 #define CODECS_STUDY_PLATFORM_LAYER_H_
+#include <SDL2/SDL.h>
+#include <SDL2/SDL_net.h>
+
 #include "base_defs.h"
 
 #define PL_DEFAULT_SCR_W       (640)
@@ -47,6 +50,11 @@ typedef void (*audio_callback_fn_t)(void* userdata, u8* stream, int len);
 typedef u64 tick_t;
 
 
+
+typedef UDPsocket pl_udp_socket_t;
+
+
+
 extern void codecs_study_main(int argc, char** argv);
 
 extern void pl_cfg_video(int w, int h, pl_video_fmt_t fmt);
@@ -74,8 +82,10 @@ extern void pl_free_buffer_ex(void(*free_fn)(void* ptr), struct pl_buffer* plb);
 
 extern void pl_sleep(int ms);
 
-
-
+extern pl_udp_socket_t pl_socket_udp_sender_create(const char* ip, u16 port);
+extern pl_udp_socket_t pl_socket_udp_receiver_create(u16 port);
+extern void pl_socket_udp_send(pl_udp_socket_t socket, void* data, size_t size);
+extern void pl_socket_udp_recv(pl_udp_socket_t socket, void* data, size_t size);
 
 #endif
 
