@@ -103,6 +103,16 @@ static int decode_write_frame(
 
 static void recv_and_decode_and_draw(void)
 {
+	char send_str_buf[24] = "recv_ready\0";
+	char recv_str_buf[24] = "\0";
+
+	pl_socket_udp_send(send_sock, send_str_buf, strlen(send_str_buf));
+	pl_socket_udp_recv(recv_sock, recv_str_buf, strlen("snd_ready"));
+	log_info("got str: %s", recv_str_buf);
+	if (strcmp(recv_str_buf, "snd_ready") != 0)
+		return;
+
+
 	u64 incoming_size;
 	if (pl_socket_udp_recv(recv_sock, &incoming_size, sizeof(incoming_size)) != sizeof(incoming_size))
 		return;

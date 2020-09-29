@@ -156,6 +156,18 @@ void codecs_study_main(int argc, char** argv)
 	while (!pl_close_request()) {
 		update_fb();
 		if (size_cnt > 0) {
+			char send_str_buf[24] = "snd_ready\0";
+			char recv_str_buf[24] = "\0";
+
+
+			pl_socket_udp_recv(recv_sock, recv_str_buf, strlen("recv_ready"));
+			log_info("got str: %s", recv_str_buf);
+			if (strcmp(recv_str_buf, "recv_ready") != 0) {
+				size_cnt = 0;
+				continue;
+			}
+			pl_socket_udp_send(send_sock, send_str_buf, strlen(send_str_buf));
+
 			pl_socket_udp_send(send_sock, &size_cnt, sizeof(size_cnt));
 
 			u64 response;
