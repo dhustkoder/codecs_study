@@ -254,7 +254,7 @@ int pl_socket_udp_recv(pl_udp_socket_t socket, void* data, size_t size)
 	SDLNet_UDP_AddSocket(set, socket);
 
 
-	int check = SDLNet_CheckSockets(set, 16);
+	int check = SDLNet_CheckSockets(set, 1000);
 	if (check <= 0)
 		return 0;
 

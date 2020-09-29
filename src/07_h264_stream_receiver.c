@@ -75,7 +75,6 @@ static void decoder_term(void)
 static int decode_write_frame(
 	AVCodecContext *avctx,
 	AVFrame *frame,
-	int *frame_count,
 	AVPacket *pkt,
 	int last
 )
@@ -90,7 +89,7 @@ static int decode_write_frame(
 			frame->data[0], frame->data[1], frame->data[2],
 			frame->linesize[0], frame->linesize[1], frame->linesize[2]
 		);
-		(*frame_count)++;
+		frame_count++;
 	}
 
 	if (pkt->data) {
@@ -115,15 +114,16 @@ static void recv_and_decode_and_draw(void)
 
 	pl_socket_udp_send(send_sock, &incoming_size, sizeof(incoming_size));
 
-	avpkt.size = pl_socket_udp_recv(recv_sock, inbuf, incoming_size);
+	u64 recv_size = pl_socket_udp_recv(recv_sock, inbuf, incoming_size);
 
-	if (avpkt.size != incoming_size)
+	if (recv_size != incoming_size)
 		return;
 
+	avpkt.size = recv_size;
 	avpkt.data = inbuf;
 
 	while (avpkt.size > 0) {
-		if (decode_write_frame(c, frame, &frame_count, &avpkt, 0) < 0) {
+		if (decode_write_frame(c, frame, &avpkt, 0) < 0) {
 			printf("failed with pkt.size: %d\n", avpkt.size);
 			return;
 		}
@@ -142,15 +142,13 @@ void codecs_study_main(int argc, char** argv)
 
 	pl_cfg_video(WIDTH, HEIGHT, PL_VIDEO_FMT_YUV);
 
-	int fps = 0;
 	tick_t ticks = pl_get_ticks(); 
 
 	while (!pl_close_request()) {
 		recv_and_decode_and_draw();
-		fps++;
 		if ((pl_get_ticks() - ticks) > 1000) {
-			log_info("FPS: %d", fps);
-			fps = 0;
+			log_info("FPS: %d", frame_count);
+			frame_count = 0;
 			ticks = pl_get_ticks();
 		}
 	}

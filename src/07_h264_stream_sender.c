@@ -57,13 +57,13 @@ static void encoder_init(void)
 
 
 	/* put sample parameters */
-	c->bit_rate = 400000;
+	c->bit_rate = 450000;
 	/* resolution must be a multiple of two */
 	c->width = WIDTH;
 	c->height = HEIGHT;
 	/* frames per second */
 	c->time_base= (AVRational){1,60};
-	c->gop_size = 10; /* emit one intra frame every ten frames */
+	c->gop_size = 24; /* emit one intra frame every ten frames */
 	c->max_b_frames=1;
 	c->pix_fmt = AV_PIX_FMT_YUV420P;
 	av_opt_set(c->priv_data, "preset", "slow", 0);
@@ -108,14 +108,13 @@ static void encode_and_send_fb(void)
 {
 	static int pts = 0;
 	int ret, x, y, got_output;
-	uint8_t endcode[] = { 0, 0, 1, 0xb7 };
 	
 
 	/* prepare a dummy image */
 	/* Y */
 	for(y=0;y<c->height;y++) {
 		for(x=0;x<c->width;x++) {
-			frame->data[0][y * frame->linesize[0] + x] = x + y + 3;
+			frame->data[0][y * frame->linesize[0] + x] = x + y + rand();
 		}
 	}
 
