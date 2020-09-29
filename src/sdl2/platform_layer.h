@@ -85,7 +85,10 @@ extern void pl_sleep(int ms);
 extern pl_udp_socket_t pl_socket_udp_sender_create(const char* ip, u16 port);
 extern pl_udp_socket_t pl_socket_udp_receiver_create(u16 port);
 extern void pl_socket_udp_send(pl_udp_socket_t socket, void* data, size_t size);
-extern void pl_socket_udp_recv(pl_udp_socket_t socket, void* data, size_t size);
+extern int pl_socket_udp_recv(pl_udp_socket_t socket, void* data, size_t size);
+
+
+
 
 #endif
 

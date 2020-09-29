@@ -237,7 +237,7 @@ void pl_socket_udp_send(pl_udp_socket_t socket, void* data, size_t size)
 
 }
 
-void pl_socket_udp_recv(pl_udp_socket_t socket, void* data, size_t size)
+int pl_socket_udp_recv(pl_udp_socket_t socket, void* data, size_t size)
 {
 	SDLNet_SocketSet set;
 
@@ -254,16 +254,16 @@ void pl_socket_udp_recv(pl_udp_socket_t socket, void* data, size_t size)
 	SDLNet_UDP_AddSocket(set, socket);
 
 
-	for (;;) {
-		int check = SDLNet_CheckSockets(set, 16);
-		if (check != -1 && check > 0)
-			break;
-	}
+	int check = SDLNet_CheckSockets(set, 16);
+	if (check <= 0)
+		return 0;
 
 	SDLNet_UDP_Recv(socket, &packet);
 
 
 	SDLNet_FreeSocketSet(set);
+
+	return packet.len;
 }
 
 

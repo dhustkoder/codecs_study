@@ -20,7 +20,7 @@ void codecs_study_main(int argc, char** argv)
 	req_sock = pl_socket_udp_receiver_create(7172);
 
 
-	for (;;) {
+	while (!pl_close_request()) {
 		pl_socket_udp_recv(req_sock, &request_size, sizeof request_size);
 		pl_socket_udp_send(send_sock, bufp, request_size);
 		bufp += request_size;
