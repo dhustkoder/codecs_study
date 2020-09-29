@@ -57,7 +57,7 @@ static void encoder_init(void)
 
 
 	/* put sample parameters */
-	c->bit_rate = 10 * 1000 * 10000;
+	c->bit_rate = 450000;
 	/* resolution must be a multiple of two */
 	c->width = WIDTH;
 	c->height = HEIGHT;
@@ -114,7 +114,7 @@ static void encode_and_send_fb(void)
 	/* Y */
 	for(y=0;y<c->height;y++) {
 		for(x=0;x<c->width;x++) {
-			frame->data[0][y * frame->linesize[0] + x] = x + y + rand();
+			frame->data[0][y * frame->linesize[0] + x] = x + y + 2;
 		}
 	}
 
