@@ -57,16 +57,16 @@ static void encoder_init(void)
 
 
 	/* put sample parameters */
-	c->bit_rate = 450000;
+	c->bit_rate = 10 * 1000 * 10000;
 	/* resolution must be a multiple of two */
 	c->width = WIDTH;
 	c->height = HEIGHT;
 	/* frames per second */
 	c->time_base= (AVRational){1,60};
-	c->gop_size = 24; /* emit one intra frame every ten frames */
+	c->gop_size = 30; /* emit one intra frame every ten frames */
 	c->max_b_frames=1;
 	c->pix_fmt = AV_PIX_FMT_YUV420P;
-	av_opt_set(c->priv_data, "preset", "slow", 0);
+	av_opt_set(c->priv_data, "preset", "ultrafast", 0);
 	
 	/* open it */
 	if (avcodec_open2(c, codec, NULL) < 0)
